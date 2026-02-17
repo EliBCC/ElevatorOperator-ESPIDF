@@ -5,6 +5,7 @@
 #include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
+#include "esp_crt_bundle.h"
 #include "esp_event.h"
 
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
@@ -183,10 +184,12 @@ static void http_get_task(void *pvParameters)
     char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
 
     esp_http_client_config_t config = {
-        .url = "http://neverssl.com/",
+        .url = "http://wifitest.adafruit.com/testwifi/index.html",
         .event_handler = _http_event_handler,
         .user_data = local_response_buffer, // Pass address of local buffer to event handler
         .disable_auto_redirect = false,     // Handle redirects automatically
+        .transport_type = HTTP_TRANSPORT_OVER_SSL,  //Specify transport type
+        .crt_bundle_attach = esp_crt_bundle_attach, //Attach the certificate bundle 
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
 
