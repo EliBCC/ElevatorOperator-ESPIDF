@@ -129,11 +129,14 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
             // If user_data is not NULL, it means buffer is passed from user, append data to it.
             if (evt->user_data) {
+                ESP_LOGD(TAG, "user_data is not NULL, appending");
                 memcpy(evt->user_data + output_len, evt->data, evt->data_len);
             } else { // Otherwise, allocate new buffer and copy data.
+                ESP_LOGD(TAG, "user_data is NULL, create new buffer");
                 if (output_buffer == NULL) {
+                    ESP_LOGD(TAG, "output_buffer is null, allocate space");
                     // Allocate dynamic buffer to store response data
-                    output_buffer = (char *) malloc(esp_http_client_get_content_length(evt->client));
+                    output_buffer = (char *) malloc(esp_http_client_get_content_length(evt->client) + 1);
                     output_len = 0;
                     if (output_buffer == NULL) {
                         ESP_LOGE(TAG, "Failed to allocate memory for output buffer");
@@ -143,6 +146,9 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                 memcpy(output_buffer + output_len, evt->data, evt->data_len);
             }
             output_len += evt->data_len;
+            ESP_LOGD(TAG, "output_buffer has length: %d", output_len);
+            output_buffer[output_len] = '\0';
+            ESP_LOGD(TAG, "output_buffer is: %s", output_buffer);
             break;
         case HTTP_EVENT_ON_FINISH:
             ESP_LOGD(TAG, "HTTP_EVENT_ON_FINISH");
@@ -152,6 +158,9 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                 free(output_buffer);
                 output_buffer = NULL;
                 output_len = 0;
+            }
+            else {
+                ESP_LOGW(TAG, "output_buffer is NULL");
             }
             break;
         case HTTP_EVENT_DISCONNECTED:
@@ -185,6 +194,7 @@ static void http_get_task(void *pvParameters)
 
     esp_http_client_config_t config = {
         .url = "http://wifitest.adafruit.com/testwifi/index.html",
+        // .url = "https://getaway.translink.ca/api/gtfs/stop/50916/route/9/realtimeschedules?querySize=1",
         .event_handler = _http_event_handler,
         .user_data = local_response_buffer, // Pass address of local buffer to event handler
         .disable_auto_redirect = false,     // Handle redirects automatically
@@ -217,6 +227,8 @@ void app_main(void)
       ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+
+    esp_log_level_set("*", ESP_LOG_VERBOSE);
 
     wifi_init_sta();
 
