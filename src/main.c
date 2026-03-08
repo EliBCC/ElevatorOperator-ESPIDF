@@ -128,7 +128,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         case HTTP_EVENT_ON_DATA:
             ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
             // If user_data is not NULL, it means buffer is passed from user, append data to it.
-            if (evt->user_data) {
+            if (*(char*)(evt->user_data) != '\0') {
                 ESP_LOGD(TAG, "user_data is not NULL, appending");
                 memcpy(evt->user_data + output_len, evt->data, evt->data_len);
             } else { // Otherwise, allocate new buffer and copy data.
