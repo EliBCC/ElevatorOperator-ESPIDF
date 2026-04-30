@@ -192,5 +192,4 @@ void http_get_task(void *pvParameters)
     }
 
     esp_http_client_cleanup(client);
-    vTaskDelete(NULL);
 }
