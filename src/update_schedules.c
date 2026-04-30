@@ -1,7 +1,3 @@
-#include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-
 #include "fetch_http.h"
 #include "secrets.h"
 #include "translink.h"
@@ -25,7 +21,7 @@ void get_from_http(http_response_buf_t *response)
         .url = url
     };
 
-    xTaskCreate(&http_get_task, "http_get_task", 16384, (void *)(&request), 5, NULL);
+    http_get_task((void *)(&request));
 }
 
 void update_schedule()

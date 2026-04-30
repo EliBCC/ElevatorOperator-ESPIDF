@@ -33,6 +33,6 @@ void app_main(void)
 
     wifi_init_sta();
 
-    update_schedule();
+    xTaskCreate(&update_schedule, "update_schedule", 16384, NULL, 5, NULL);
 }
 
