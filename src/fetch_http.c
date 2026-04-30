@@ -159,23 +159,20 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 
 void http_get_task(void *pvParameters)
 {
+    ESP_LOGD(TAG, "In http_get_task");
     // Wait for Wi-Fi connection
     xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
-    ESP_LOGI(TAG, "Connected to Wi-Fi, starting HTTP GET task.");
+    ESP_LOGD(TAG, "Connected to Wi-Fi, starting HTTP GET task.");
 
-    char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
-    http_response_buf_t response = {
-        .buf = local_response_buffer,
-        .size = sizeof(local_response_buffer),
-        .written = 0
-    };
+    http_request_params_t *params = (http_request_params_t *)pvParameters;
+    http_response_buf_t *response = params->response_buff;
 
     esp_http_client_config_t config = {
         // .url = "http://wifitest.adafruit.com/testwifi/index.html",
-        .url = "https://getaway.translink.ca/api/gtfs/stop/50916/route/9/realtimeschedules?querySize=1",
+        .url = params->url,
         .event_handler = _http_event_handler,
-        .user_data = &response, // Pass address of local buffer to event handler
-        .buffer_size = sizeof(local_response_buffer),         // Let client know how much data it can put in the buffer
+        .user_data = response,             // Pass address of local buffer to event handler
+        .buffer_size = response->size,         // Let client know how much data it can put in the buffer
         .disable_auto_redirect = false,     // Handle redirects automatically
         .transport_type = HTTP_TRANSPORT_OVER_SSL,  //Specify transport type
         .crt_bundle_attach = esp_crt_bundle_attach, //Attach the certificate bundle 

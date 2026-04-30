@@ -1,7 +1,5 @@
-#include <string>
-#include <vector>
-#include <optional>
-#include <cstdint>
+#include <string.h>
+#include <stdbool.h>
 
 // TransLink URLs
 
@@ -20,7 +18,7 @@ Format:
 
 struct Routes {
     int routeNumber;
-    std::string routeDescription;
+    char *routeDescription;
     int routeType;
 };
 
@@ -65,49 +63,49 @@ Format:
 */
 #define GET_ALL_ALERTS "https://getaway.translink.ca/api/allalerts"
 
-struct TranslinkActivePeriod {
-    std::string startTime;                  // "YYYY-MM-DDTHH:MM:SSZ"
-    std::optional<std::string> endTime;     // "YYYY-MM-DDTHH:MM:SSZ" or null
-};
+typedef struct {
+    char * startTime;                  // "YYYY-MM-DDTHH:MM:SSZ"
+    char * endTime;     // "YYYY-MM-DDTHH:MM:SSZ" or null
+} TranslinkActivePeriod;
 
-struct TranslinkAlert {
-    std::string id;
+typedef struct {
+    char * id;
     int group;
     bool closed;
     bool critical;
     bool advisory;
     int mode;
 
-    std::string routeId;
-    std::string routeLongName;      // Human-readable name
+    char * routeId;
+    char * routeLongName;      // Human-readable name
 
-    std::vector<int> directions;    // 0 and/or 1
-    std::vector<std::string> stops; // StopID as string
+    int *directions;    // 0 and/or 1
+    char ** stops;      // StopID as string
 
-    std::string stationId;          // Empty string
-    std::string stationName;        // Empty string
+    char * stationId;          // Empty string
+    char * stationName;        // Empty string
 
-    std::string alertLifecycle;     // "NEW"
-    std::string certainty;          // "KNOWN" or "UNKNOWN"
-    std::string effect;             // "SERVICE_CHANGE" or "ESCALATORS" or "CANCELATION", etc.
+    char * alertLifecycle;     // "NEW"
+    char * certainty;          // "KNOWN" or "UNKNOWN"
+    char * effect;             // "SERVICE_CHANGE" or "ESCALATORS" or "CANCELATION", etc.
 
     int endStamp;          
 
-    std::vector<TranslinkActivePeriod> activePeriods;
+    TranslinkActivePeriod * activePeriods;
 
-    std::string startTime;                      // "YYYY-MM-DDTHH:MM:SSZ"
-    std::optional<std::string> endTime;         // "YYYY-MM-DDTHH:MM:SSZ" || null
+    char * startTime;                      // "YYYY-MM-DDTHH:MM:SSZ"
+    char * endTime;                        // "YYYY-MM-DDTHH:MM:SSZ" || null
 
-    std::string alertText;                      // Human readable summary
-    std::string header;                         // Human readable more info
-    std::string description;                    // Human readable extra info
+    char * alertText;                      // Human readable summary
+    char * header;                         // Human readable more info
+    char * description;                    // Human readable extra info
 
-    std::string url;                            // URL for more info, or empty string
-    std::string imageURLString;                 // Empty string
-    std::string imageAltText;                   // Empty string
+    char * url;                            // URL for more info, or empty string
+    char * imageURLString;                 // Empty string
+    char * imageAltText;                   // Empty string
 
-    std::string lastModified;                   // "YYYY-MM-DDTHH:MM:SSZ"
-};
+    char * lastModified;                   // "YYYY-MM-DDTHH:MM:SSZ"
+} TranslinkAlert;
 
 /*
 Format:
@@ -119,15 +117,15 @@ Format:
     "sheetEndDate": datetime    // "YYYY-MM-DD"
 }
 */
-#define GET_NEXT_TRIP_FOR_ROUTE_AND_DIRECTION(route, direction) sprintf("https://getaway.translink.ca/api/gtfs/route/%d/direction/%d/nexttrip", route, direction)
+#define GET_NEXT_TRIP_FOR_ROUTE_AND_DIRECTION(buff, route, direction) sprintf(buff, "https://getaway.translink.ca/api/gtfs/route/%d/direction/%d/nexttrip", route, direction)
 
-struct NextTrip {
-    std::string searchDateTime;             // YYYY-MM-DDTHH:MM:SS
-    std::string nextTripDate;               // YYYY-MM-DD
-    std::string nextTripTime;               // (h)h:MM
+typedef struct {
+    char * searchDateTime;             // YYYY-MM-DDTHH:MM:SS
+    char * nextTripDate;               // YYYY-MM-DD
+    char * nextTripTime;               // (h)h:MM
     unsigned int nextTripDateTimeInUnix;
-    std::string sheetEndDate;               // YYYY-MM-DD
-};
+    char * sheetEndDate;               // YYYY-MM-DD
+} NextTrip;
 
 /*
 Format:
@@ -174,20 +172,21 @@ Format:
     ]
 }            
 */
-#define GET_ALL_TRIPS_FOR_ROUTE_DIRECTION_AND_DAY(route, direction, day) sprintf("https://getaway.translink.ca/api/gtfs/route/%d/direction/%d/schedules/%s", route, direction, day)
 
-struct Direction {
+#define GET_ALL_TRIPS_FOR_ROUTE_DIRECTION_AND_DAY(buff, route, direction, day) sprintf(buff, "https://getaway.translink.ca/api/gtfs/route/%d/direction/%d/schedules/%s", route, direction, day)
+
+typedef struct {
     int directionID;                // di
-    std::string cardinalDirection;  // cd
-    std::string directionName;      // dn
-};
+    char * cardinalDirection;  // cd
+    char * directionName;      // dn
+} Direction;
 
-struct StopTime {
-    std::string stopTimeID;         // ti
+typedef struct {
+    char * stopTimeID;         // ti
     int stopOrder;                  // ts. Appears to indicate that this will be the Nth next bus at this stop
-    std::string stopName;           // th
-    std::string pn;
-    std::string stopTime;           // dt. (H)H:MM
+    char * stopName;           // th
+    char * pn;
+    char * stopTime;           // dt. (H)H:MM
     unsigned int stopTimeUnix;      // ut
     int dt;
     bool po;
@@ -195,27 +194,27 @@ struct StopTime {
     bool no;
     int ba;
     bool tp;
-};
+} StopTime;
 
-struct Stop {
-    std::string id;                     // NOT the stop ID
-    std::string stopID;                 // sc
-    std::string stopName;               // sn
+typedef struct {
+    char * id;                     // NOT the stop ID
+    char * stopID;                 // sc
+    char * stopName;               // sn
     float latitude;                     // la
     float longitude;                    // lo
     int wc;
     int ss;
-    std::vector<StopTime> stopTimes;   // st
-};
+    StopTime * stopTimes;   // st
+} Stop;
 
-struct Schedule {
-    std::string routeNumber;            // rs
-    std::string routeName;              // rl
+typedef struct {
+    char * routeNumber;            // rs
+    char * routeName;              // rl
     int rt;
-    std::vector<Direction> directions;  // d
-    std::string searchDate;             // sd. YYYY-MM-DD
-    std::vector<Stop> stops;            // s
-};
+    Direction * directions;  // d
+    char * searchDate;             // sd. YYYY-MM-DD
+    Stop * stops;            // s
+} Schedule;
 
 /*
 Format:
@@ -263,32 +262,33 @@ Format:
 ]
 
 */
-#define GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(stop, route, size) sprintf("https://getaway.translink.ca/api/gtfs/stop/%d/route/%d/realtimeschedules?querySize=%d")
-struct RealtimeStopTime : public StopTime {
+#define GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(buff, stop, route, size) sprintf(buff, "https://getaway.translink.ca/api/gtfs/stop/%d/route/%d/realtimeschedules?querySize=%d", stop, route, size)
+typedef struct {
+    Stop *stop;
     bool tc;
     bool cs;
     bool realTime;  // rt. Indicates whether this time was updated with realtime info, or based on the schedule
-};
+} RealtimeStopTime;
 
-struct RealtimeSchedule {
-    std::string id;                             // ri
-    std::string routeNumber;                    // rs 
-    std::string routeName;                      // rl 
+typedef struct {
+    char * id;                             // ri
+    char * routeNumber;                    // rs 
+    char * routeName;                      // rl 
     int direction;                              // di
-    std::string directionName;                  // dn
-    std::string hs;
+    char * directionName;                  // dn
+    char * hs;
     int rt;
-    std::vector<RealtimeStopTime> stopTimes;    // t
-};
+    RealtimeStopTime * stopTimes;    // t
+} RealtimeSchedule;
 
-struct RealtimeStop {
-    std::string id;
-    std::string stopID;                     // sc
-    std::string stopName;                   // sn
+typedef struct {
+    char * id;
+    char * stopID;                     // sc
+    char * stopName;                   // sn
     float latitude;                         // la
     float longitude;                        // lo
     int wc;
-    std::string searchDate;                 // sd. YYYY-MM-DDTHH:MM:SS.sssssss
+    char * searchDate;                 // sd. YYYY-MM-DDTHH:MM:SS.sssssss
     unsigned int searchDateUnix;            // lu
-    std::vector<RealtimeSchedule> trips;    // r
-};
+    RealtimeSchedule * trips;    // r
+} RealtimeStop;

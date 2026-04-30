@@ -15,6 +15,11 @@ typedef struct {
     size_t written;
 } http_response_buf_t;
 
+typedef struct {
+    http_response_buf_t *response_buff;
+    char *url;
+} http_request_params_t;
+
 void wifi_init_sta(void);
 void http_get_task(void *pvParameters);
 #endif
