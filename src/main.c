@@ -110,8 +110,7 @@ void wifi_init_sta(void)
 // HTTP event handler
 esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
-    static char *output_buffer;  // Buffer to store response of http request
-    static int output_len;       // Stores number of bytes read
+    http_response_buf_t *resp = (http_response_buf_t *)evt->user_data;
     switch(evt->event_id) {
         case HTTP_EVENT_ERROR:
             ESP_LOGD(TAG, "HTTP_EVENT_ERROR");
@@ -127,41 +126,35 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             break;
         case HTTP_EVENT_ON_DATA:
             ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-            // If user_data is not NULL, it means buffer is passed from user, append data to it.
-            if (*(char*)(evt->user_data) != '\0') {
-                ESP_LOGD(TAG, "user_data is not NULL, appending");
-                memcpy(evt->user_data + output_len, evt->data, evt->data_len);
-            } else { // Otherwise, allocate new buffer and copy data.
-                ESP_LOGD(TAG, "user_data is NULL, create new buffer");
-                if (output_buffer == NULL) {
-                    ESP_LOGD(TAG, "output_buffer is null, allocate space");
-                    // Allocate dynamic buffer to store response data
-                    output_buffer = (char *) malloc(esp_http_client_get_content_length(evt->client) + 1);
-                    output_len = 0;
-                    if (output_buffer == NULL) {
-                        ESP_LOGE(TAG, "Failed to allocate memory for output buffer");
-                        return ESP_FAIL;
-                    }
-                }
-                memcpy(output_buffer + output_len, evt->data, evt->data_len);
+            // // If user_data is not NULL, it means buffer is passed from user, append data to it.
+            // if (evt->user_data != NULL) {
+            //     ESP_LOGD(TAG, "user_data is not NULL, appending");
+            //     memcpy(evt->user_data + output_len, evt->data, evt->data_len);
+            // } else { // Otherwise, allocate new buffer and copy data.
+            //     ESP_LOGD(TAG, "user_data is NULL, create new buffer");
+            //     if (output_buffer == NULL) {
+            //         size_t output_buffer_size = (size_t) esp_http_client_get_content_length(evt->client) + 1;
+            //         ESP_LOGD(TAG, "output_buffer is null, allocate %d bytes", output_buffer_size);
+            //         ESP_LOGD(TAG, "heap_caps_get_largest_free_block: %d\n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+            //         // Allocate dynamic buffer to store response data
+            //         output_buffer = (char *) malloc(output_buffer_size);
+            //         output_len = 0;
+            //         if (output_buffer == NULL) {
+            //             ESP_LOGE(TAG, "Failed to allocate memory for output buffer");
+            //             return ESP_FAIL;
+            //         }
+            //     }
+            if (resp->written + evt->data_len >= resp->size) {
+                ESP_LOGE(TAG, "Response too large for buffer. Writing %d bytes, found %d bytes remaining.", evt->data_len, resp->size - resp->written);
+                return ESP_FAIL;
             }
-            output_len += evt->data_len;
-            ESP_LOGD(TAG, "output_buffer has length: %d", output_len);
-            output_buffer[output_len] = '\0';
-            ESP_LOGD(TAG, "output_buffer is: %s", output_buffer);
+            memcpy(resp->buf + resp->written, evt->data, evt->data_len);
+            resp->written += evt->data_len;
+            ESP_LOGD(TAG, "buffer contains %d bytes", resp->written);
             break;
         case HTTP_EVENT_ON_FINISH:
             ESP_LOGD(TAG, "HTTP_EVENT_ON_FINISH");
-            if (output_buffer != NULL) {
-                // Response is accumulated in output_buffer. Process it here.
-                ESP_LOGI(TAG, "Received data: %.*s", output_len, output_buffer);
-                free(output_buffer);
-                output_buffer = NULL;
-                output_len = 0;
-            }
-            else {
-                ESP_LOGW(TAG, "output_buffer is NULL");
-            }
+            ESP_LOGD(TAG, "Received: \n%.*s", resp->written, resp->buf);
             break;
         case HTTP_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "HTTP_EVENT_DISCONNECTED");
@@ -170,11 +163,6 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             // if (err != 0) {
             //     ESP_LOGI(TAG, "Last mbedtls error: 0x%x", mbedtls_err);
             // }
-            if (output_buffer != NULL) { // Clean up buffer if disconnected before finish
-                free(output_buffer);
-                output_buffer = NULL;
-                output_len = 0;
-            }
             break;
         case HTTP_EVENT_REDIRECT:
             ESP_LOGD(TAG, "HTTP_EVENT_REDIRECT");
@@ -191,12 +179,18 @@ static void http_get_task(void *pvParameters)
     ESP_LOGI(TAG, "Connected to Wi-Fi, starting HTTP GET task.");
 
     char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
+    http_response_buf_t response = {
+        .buf = local_response_buffer,
+        .size = sizeof(local_response_buffer),
+        .written = 0
+    };
 
     esp_http_client_config_t config = {
-        .url = "http://wifitest.adafruit.com/testwifi/index.html",
-        // .url = "https://getaway.translink.ca/api/gtfs/stop/50916/route/9/realtimeschedules?querySize=1",
+        // .url = "http://wifitest.adafruit.com/testwifi/index.html",
+        .url = "https://getaway.translink.ca/api/gtfs/stop/50916/route/9/realtimeschedules?querySize=1",
         .event_handler = _http_event_handler,
-        .user_data = local_response_buffer, // Pass address of local buffer to event handler
+        .user_data = &response, // Pass address of local buffer to event handler
+        .buffer_size = sizeof(local_response_buffer),         // Let client know how much data it can put in the buffer
         .disable_auto_redirect = false,     // Handle redirects automatically
         .transport_type = HTTP_TRANSPORT_OVER_SSL,  //Specify transport type
         .crt_bundle_attach = esp_crt_bundle_attach, //Attach the certificate bundle 
@@ -232,6 +226,6 @@ void app_main(void)
 
     wifi_init_sta();
 
-    xTaskCreate(&http_get_task, "http_get_task", 8192, NULL, 5, NULL);
+    xTaskCreate(&http_get_task, "http_get_task", 16384, NULL, 5, NULL);
 }
 

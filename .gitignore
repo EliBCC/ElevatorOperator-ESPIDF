@@ -24,6 +24,7 @@ cmake_install.cmake
 compile_commands.json
 Makefile
 sdkconfig*
+!sdkconfig.defaults
 # Note: remove sdkconfig* from this file if you want to commit sdkconfig to repo
 
 # IDEs/editors
