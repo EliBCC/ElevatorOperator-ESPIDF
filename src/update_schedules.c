@@ -67,44 +67,85 @@ void update_schedule()
     char *formatted_json = cJSON_Print(json);
     ESP_LOGD(TAG,"JSON: \n%s\n", formatted_json);
 
-    // cJSON *id = cJSON_GetObjectItemCaseSensitive(json, "id");
-    // cJSON *stopID = cJSON_GetObjectItemCaseSensitive(json, "sc");
-    // cJSON *stopName = cJSON_GetObjectItemCaseSensitive(json, "sn");
-    // cJSON *latitude = cJSON_GetObjectItemCaseSensitive(json, "la");
-    // cJSON *longitude = cJSON_GetObjectItemCaseSensitive(json, "lo");
-    // cJSON *wc = cJSON_GetObjectItemCaseSensitive(json, "wc");
-    // cJSON *searchDate = cJSON_GetObjectItemCaseSensitive(json, "sd");
-    // cJSON *searchDateUnix = cJSON_GetObjectItemCaseSensitive(json, "lu");
-    // cJSON *trips = cJSON_GetObjectItemCaseSensitive(json, "r");
+    cJSON *id = cJSON_GetObjectItemCaseSensitive(json, "id");
+    cJSON *stopID = cJSON_GetObjectItemCaseSensitive(json, "sc");
+    cJSON *stopName = cJSON_GetObjectItemCaseSensitive(json, "sn");
+    cJSON *latitude = cJSON_GetObjectItemCaseSensitive(json, "la");
+    cJSON *longitude = cJSON_GetObjectItemCaseSensitive(json, "lo");
+    cJSON *wc = cJSON_GetObjectItemCaseSensitive(json, "wc");
+    cJSON *searchDate = cJSON_GetObjectItemCaseSensitive(json, "sd");
+    cJSON *searchDateUnix = cJSON_GetObjectItemCaseSensitive(json, "lu");
+    cJSON *trips = cJSON_GetObjectItemCaseSensitive(json, "r");
 
-    // RealtimeStop stop = {
-    //     .id = cJSON_Print(id),
-    //     .stopID = cJSON_Print(stopID),
-    //     .stopName = cJSON_Print(stopName),
-    //     .latitude = atof(cJSON_Print(latitude)),
-    //     .longitude = atof(cJSON_Print(longitude)),
-    //     .wc = atoi(cJSON_Print(wc)),
-    //     .searchDate = cJSON_Print(searchDate),
-    //     .searchDateUnix = atoi(cJSON_Print(searchDateUnix)),
-    //     .trips = (RealtimeSchedule *)(0)
-    // };
+    RealtimeStop stop = {
+        .id            = cJSON_GetStringValue(id),        // don't use cJSON_Print
+        .stopID        = cJSON_GetStringValue(stopID),
+        .stopName      = cJSON_GetStringValue(stopName),
+        .latitude      = (float)latitude->valuedouble,    // direct field access
+        .longitude     = (float)longitude->valuedouble,
+        .wc            = wc->valueint,
+        .searchDate    = cJSON_GetStringValue(searchDate),
+        .searchDateUnix = (unsigned int)searchDateUnix->valuedouble,
+        .trips         = NULL
+    };
 
-    // RealtimeSchedule schedules 
-    // cJSON *subitem;
-    // for (int i=0; i < cJSON_GetArraySize(trips); i++)
-    // {
-    //     subitem = cJSON_GetArrayItem(trips, i);
-    //     cJSON *id = cJSON_GetObjectItemCaseSensitive(subitem, "ri");
-    //     cJSON *routeNumber = cJSON_GetObjectItemCaseSensitive(subitem, "rs");
-    //     cJSON *routeName = cJSON_GetObjectItemCaseSensitive(subitem, "rl");
-    //     cJSON *direction = cJSON_GetObjectItemCaseSensitive(subitem, "di");
-    //     cJSON *directionName = cJSON_GetObjectItemCaseSensitive(subitem, "dn");
-    //     cJSON *hs = cJSON_GetObjectItemCaseSensitive(subitem, "hs");
-    //     cJSON *rt = cJSON_GetObjectItemCaseSensitive(subitem, "t");
+    int trip_count = cJSON_GetArraySize(trips);
+    RealtimeSchedule *schedules = malloc(trip_count * sizeof(RealtimeSchedule));
 
-    //     RealtimeSchedule schedule = {}
-    // }
+    int i = 0;
+    cJSON *j_trip;
+    cJSON_ArrayForEach(j_trip, trips)
+    {
+        cJSON *j_times = cJSON_GetObjectItemCaseSensitive(j_trip, "t");
+        int time_count = cJSON_GetArraySize(j_times);
+        RealtimeStopTime *stop_times = malloc(time_count * sizeof(RealtimeStopTime));
 
+        int k = 0;
+        cJSON *j_time;
+        cJSON_ArrayForEach(j_time, j_times)
+        {
+            cJSON *j_ut = cJSON_GetObjectItemCaseSensitive(j_time, "ut");
+            cJSON *j_dl = cJSON_GetObjectItemCaseSensitive(j_time, "dl");
+            cJSON *j_ba = cJSON_GetObjectItemCaseSensitive(j_time, "ba");
+            stop_times[k++] = (RealtimeStopTime){
+                .tripID            = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_time, "ti")),
+                .tripName          = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_time, "th")),
+                .departureTime     = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_time, "dt")),
+                .departureTimeUnix = j_ut ? (unsigned int)j_ut->valuedouble : 0,
+                .delay             = j_dl ? j_dl->valueint : 0,
+                .vehicleID         = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_time, "vi")),
+                .po                = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "po")),
+                .do_               = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "do")),
+                .no                = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "no")),
+                .ba                = j_ba ? j_ba->valueint : 0,
+                .tp                = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "tp")),
+                .tc                = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "tc")),
+                .cs                = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "cs")),
+                .realTime          = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "rt"))
+            };
+        }
+
+        cJSON *j_di = cJSON_GetObjectItemCaseSensitive(j_trip, "di");
+        cJSON *j_rt = cJSON_GetObjectItemCaseSensitive(j_trip, "rt");
+        schedules[i++] = (RealtimeSchedule){
+            .id            = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_trip, "ri")),
+            .routeNumber   = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_trip, "rs")),
+            .routeName     = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_trip, "rl")),
+            .direction     = j_di ? j_di->valueint : 0,
+            .directionName = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_trip, "dn")),
+            .hs            = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_trip, "hs")),
+            .rt            = j_rt ? j_rt->valueint : 0,
+            .stopTimes     = stop_times
+        };
+    }
+
+    stop.trips = schedules;
+
+    ESP_LOGD(TAG, "Parsed into struct. E.g. trip name is: %s", stop.trips[0].stopTimes[0].tripName);
+
+    for (int j = 0; j < trip_count; j++)
+        free(schedules[j].stopTimes);
+    free(schedules);
     cJSON_Delete(json);
     free(formatted_json);
 

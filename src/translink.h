@@ -16,11 +16,11 @@ Format:
 */
 #define GET_ALL_ROUTES "https://getaway.translink.ca/api/gtfs/routes"
 
-struct Routes {
+typedef struct {
     int routeNumber;
     char *routeDescription;
     int routeType;
-};
+} Routes;
 
 /*
 Format:
@@ -264,10 +264,20 @@ Format:
 */
 #define GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(buff, stop, route, size) sprintf(buff, "https://getaway.translink.ca/api/gtfs/stop/%d/route/%d/realtimeschedules?querySize=%d", stop, route, size)
 typedef struct {
-    Stop *stop;
+    char *tripID;               // ti
+    char *tripName;             // th
+    char *departureTime;        // dt. (H)H:MM
+    unsigned int departureTimeUnix; // ut
+    int delay;                  // dl
+    char *vehicleID;            // vi
+    bool po;
+    bool do_;                   // do
+    bool no;
+    int ba;
+    bool tp;
     bool tc;
     bool cs;
-    bool realTime;  // rt. Indicates whether this time was updated with realtime info, or based on the schedule
+    bool realTime;              // rt
 } RealtimeStopTime;
 
 typedef struct {
