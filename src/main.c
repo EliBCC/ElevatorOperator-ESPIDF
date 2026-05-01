@@ -32,7 +32,11 @@ void app_main(void)
     esp_log_level_set("*", ESP_LOG_DEBUG);
 
     wifi_init_sta();
+    init_schedule_updater();
 
     xTaskCreate(&update_schedule, "update_schedule", 16384, NULL, 5, NULL);
+
+    // Remove for now, will add back when proper main loop is created
+    // cleanup_schedule_updater();
 }
 
