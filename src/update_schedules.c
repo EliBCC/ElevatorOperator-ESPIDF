@@ -12,6 +12,8 @@
 
 RealtimeStop *stop_singleton = NULL;
 static cJSON *json_singleton = NULL;
+bool run_update_schedule_task = true;
+SemaphoreHandle_t stop_singleton_mutex;
 
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 
@@ -19,6 +21,8 @@ static const char *TAG = "update_schedules";
 
 void init_schedule_updater()
 {
+    stop_singleton_mutex = xSemaphoreCreateMutex();
+    xSemaphoreTake(stop_singleton_mutex, MAX_STOP_SINGETON_MUTEX_WAIT_MS);
     stop_singleton = (RealtimeStop *)calloc(1, sizeof(RealtimeStop));
     assert(stop_singleton != NULL);
     RealtimeSchedule *schedules = (RealtimeSchedule *)calloc(1, MAX_SCHEDULES * sizeof(RealtimeSchedule));
@@ -32,6 +36,7 @@ void init_schedule_updater()
         assert(stop_times != NULL);
         stop_singleton->trips[i].stopTimes = stop_times;
     }
+    xSemaphoreGive(stop_singleton_mutex);
 }
 
 void cleanup_schedule_updater()
@@ -66,7 +71,7 @@ void get_from_http(http_response_buf_t *response)
     http_get_task((void *)(&request));
 }
 
-void update_schedule()
+void _update_schedule()
 {
     ESP_LOGD(TAG, "In update_schedule");
     char raw_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
@@ -115,6 +120,7 @@ void update_schedule()
     
     ESP_LOGD(TAG, "Parsing into stop singleton struct with pointer %p", stop_singleton);
     ESP_LOGD(TAG, "Before, trips has pointer %p", stop_singleton->trips);
+    xSemaphoreTake(stop_singleton_mutex, MAX_STOP_SINGETON_MUTEX_WAIT_MS);
     *stop_singleton = (RealtimeStop){
         .id            = cJSON_GetStringValue(id),        // don't use cJSON_Print
         .stopID        = cJSON_GetStringValue(stopID),
@@ -202,6 +208,7 @@ void update_schedule()
         // Set trip IDs to 0 to indicate that they are not valid
         stop_singleton->trips[i].id = INVALID_ID;
     }
+    xSemaphoreGive(stop_singleton_mutex);
 
     ESP_LOGD(TAG, "Parsed into struct. E.g. trip name is: %s", stop_singleton->trips[0].stopTimes[0].tripName);
 
@@ -212,4 +219,13 @@ void update_schedule()
     json_singleton = json;
 
     vTaskDelete(NULL);
+}
+
+void update_schedule()
+{
+    while(run_update_schedule_task)
+    {
+        _update_schedule();
+        vTaskDelay(PERIOD);
+    }
 }

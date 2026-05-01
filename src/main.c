@@ -19,6 +19,12 @@
 
 static const char *TAG = "main";
 
+void loop(void)
+{
+    while(true)
+    {
+    }
+}
 
 void app_main(void)
 {
@@ -33,10 +39,10 @@ void app_main(void)
 
     wifi_init_sta();
     init_schedule_updater();
-
     xTaskCreate(&update_schedule, "update_schedule", 16384, NULL, 5, NULL);
 
-    // Remove for now, will add back when proper main loop is created
-    // cleanup_schedule_updater();
+    loop();
+
+    cleanup_schedule_updater();
 }
 
