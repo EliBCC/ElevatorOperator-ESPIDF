@@ -14,6 +14,7 @@
 #include "secrets.h"
 #include "fetch_http.h"
 #include "update_schedules.h"
+#include "display.h"
 
 #define BAUD_RATE           11520
 
@@ -40,10 +41,12 @@ void app_main(void)
 
     wifi_init_sta();
     init_schedule_updater();
-    xTaskCreate(&update_schedule, "update_schedule", 16384, NULL, 5, NULL);
+    // xTaskCreate(&update_schedule, "update_schedule", 16384, NULL, 5, NULL);
 
-    loop();
+    // loop();
 
-    cleanup_schedule_updater();
+    // cleanup_schedule_updater();
+
+    display();
 }
 
