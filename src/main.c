@@ -23,6 +23,7 @@ void loop(void)
 {
     while(true)
     {
+        vTaskDelay(portMAX_DELAY);
     }
 }
 

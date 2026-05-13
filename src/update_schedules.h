@@ -3,7 +3,7 @@
 
 #include "translink.h"
 
-#define PERIOD 30 * 1000 / portTICK_PERIOD_MS
+#define PERIOD_MS 30 * 1000 / portTICK_PERIOD_MS
 
 #define MAX_SCHEDULES 5
 #define MAX_STOP_TIMES_PER_SCHEDULE 5

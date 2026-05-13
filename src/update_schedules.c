@@ -196,6 +196,7 @@ void _parse_response_to_struct(http_response_buf_t *response)
     // one must not be deleted until the struct has been fully repopulated.
     cJSON_Delete(json_singleton);
     json_singleton = json;
+    ESP_LOGD(TAG, "Freed JSON");
 }
 
 void _update_schedule()
@@ -235,7 +236,7 @@ void update_schedule()
     while(run_update_schedule_task)
     {
         _update_schedule();
-        vTaskDelay(PERIOD);
+        vTaskDelay(PERIOD_MS);
     }
     _clean_up();
 }
