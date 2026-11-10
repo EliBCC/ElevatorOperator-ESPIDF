@@ -16,13 +16,12 @@ typedef struct {
 
 static const uint32_t ROUTES_84[] = { 84 };
 static const uint32_t ROUTES_50179[] = { 3, 8, 19 };
-static const uint32_t ROUTES_3[] = { 3 };
 
 static const RouteConfig ROUTE_CONFIGS[] = {
     { .stop_number = 59760, .name = "84 East", .route_numbers = ROUTES_84, .route_count = 1 },
     { .stop_number = 59761, .name = "84 West", .route_numbers = ROUTES_84, .route_count = 1 },
-    { .stop_number = 50179, .name = "3 North", .route_numbers = ROUTES_50179, .route_count = 3 },
-    { .stop_number = 59580, .name = "3 South", .route_numbers = ROUTES_3, .route_count = 1 },
+    { .stop_number = 50179, .name = "MainN", .route_numbers = ROUTES_50179, .route_count = 3 },
+    { .stop_number = 59580, .name = "MainS", .route_numbers = ROUTES_50179, .route_count = 3 },
 };
 
 #define ROUTE_CONFIG_COUNT (sizeof(ROUTE_CONFIGS) / sizeof(ROUTE_CONFIGS[0]))
