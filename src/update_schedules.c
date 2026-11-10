@@ -77,22 +77,27 @@ void get_from_http(http_response_buf_t *response, size_t route_config_index)
 
 void _parse_response_to_struct(http_response_buf_t *response, size_t route_config_index)
 {
-    // Strip square brackets, if present
-    int lhs_offset = 0;
-    int rhs_offset = 0;
-    if (response->buf[0] == '[')
-    {
-        lhs_offset = 1;
-    }
-    if (response->buf[response->written - 1] == ']')
-    {
-        rhs_offset = 1;
+    if (response == NULL || response->buf == NULL || response->written == 0) {
+        ESP_LOGW(TAG, "Cannot parse an empty response");
+        return;
     }
 
     ESP_LOGD(TAG, "Parsing into JSON");
+    cJSON *json_document = cJSON_ParseWithLength(response->buf, response->written);
+    if (json_document == NULL) {
+        ESP_LOGW(TAG, "Invalid JSON response");
+        return;
+    }
 
-    // Parse into JSON
-    cJSON *json = cJSON_ParseWithLength(response->buf + 1, response->written - lhs_offset - rhs_offset);
+    cJSON *json = json_document;
+    if (cJSON_IsArray(json_document)) {
+        json = cJSON_GetArrayItem(json_document, 0);
+    }
+    if (!cJSON_IsObject(json)) {
+        ESP_LOGW(TAG, "Response contains no schedule object");
+        cJSON_Delete(json_document);
+        return;
+    }
 
     cJSON *id = cJSON_GetObjectItemCaseSensitive(json, "id");
     cJSON *stopID = cJSON_GetObjectItemCaseSensitive(json, "sc");
@@ -103,6 +108,14 @@ void _parse_response_to_struct(http_response_buf_t *response, size_t route_confi
     cJSON *searchDate = cJSON_GetObjectItemCaseSensitive(json, "sd");
     cJSON *searchDateUnix = cJSON_GetObjectItemCaseSensitive(json, "lu");
     cJSON *trips = cJSON_GetObjectItemCaseSensitive(json, "r");
+
+    if (!cJSON_IsNumber(latitude) || !cJSON_IsNumber(longitude) ||
+            !cJSON_IsNumber(wc) || !cJSON_IsNumber(searchDateUnix) ||
+            !cJSON_IsArray(trips)) {
+        ESP_LOGW(TAG, "Schedule response is missing required fields");
+        cJSON_Delete(json_document);
+        return;
+    }
 
     ESP_LOGD(TAG, "Parsing into stop singleton struct with pointer %p", stop_singleton);
     ESP_LOGD(TAG, "Before, trips has pointer %p", stop_singleton->trips);
@@ -201,7 +214,7 @@ void _parse_response_to_struct(http_response_buf_t *response, size_t route_confi
     // All char* fields in the struct point into json_singleton, so the old
     // one must not be deleted until the struct has been fully repopulated.
     cJSON_Delete(json_singleton);
-    json_singleton = json;
+    json_singleton = json_document;
     ESP_LOGD(TAG, "Freed JSON");
 }
 
