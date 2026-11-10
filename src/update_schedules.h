@@ -20,5 +20,4 @@ void cleanup_schedule_updater();
 
 extern bool run_update_schedule_task;
 
-
 #endif

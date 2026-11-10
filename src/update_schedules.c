@@ -58,9 +58,8 @@ void cleanup_schedule_updater()
 void get_from_http(http_response_buf_t *response)
 {
     ESP_LOGD(TAG, "In get_from_http");
-    // "https://getaway.translink.ca/api/gtfs/stop/50916/route/9/realtimeschedules?querySize=1"
     char url[100]; 
-    GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(url, 50916, 9, 1);
+    GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(url, 59760, 84, 3);
     ESP_LOGD(TAG, "Requesting url: %s", url);
 
     ESP_LOGD(TAG, "Response has address %p", response);
