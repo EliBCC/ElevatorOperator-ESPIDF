@@ -89,7 +89,7 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
             }
 
             unsigned int seconds_until = stop_time->departureTimeUnix - schedule->searchDateUnix;
-            unsigned int minutes_until = (seconds_until + 59) / 60;
+            unsigned int minutes_until = (seconds_until) / 60;
             size_t insert_at = trip_count;
             while (insert_at > 0 && next_trips[insert_at - 1].minutes > minutes_until) {
                 next_trips[insert_at] = next_trips[insert_at - 1];
@@ -105,7 +105,7 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
         return;
     }
 
-    int prefix_length = snprintf(text, text_size, "%s: ", route_number);
+    int prefix_length = snprintf(text, text_size, "%s %5s: ", route_number, next_trips[0].direction);
     if (prefix_length < 0 || (size_t)prefix_length > line_limit) {
         text[0] = '\0';
         return;
@@ -114,7 +114,7 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
     size_t used = (size_t)prefix_length;
     for (size_t i = 0; i < trip_count; i++) {
         char entry[16];
-        int entry_length = snprintf(entry, sizeof(entry), "%u(%c)", next_trips[i].minutes, next_trips[i].direction);
+        int entry_length = snprintf(entry, sizeof(entry), "%u", next_trips[i].minutes);
         size_t separator_length = i == 0 ? 0 : 2;
         if (entry_length < 0 || used + separator_length + (size_t)entry_length > line_limit) {
             break;
