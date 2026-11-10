@@ -2,11 +2,13 @@
 #define UPDATE_SCHEDULES_H
 
 #include "translink.h"
+#include "route_config.h"
 
 #define PERIOD_MS 30 * 1000 / portTICK_PERIOD_MS
 
 #define MAX_SCHEDULES 5
 #define MAX_STOP_TIMES_PER_SCHEDULE 5
+#define MAX_MERGED_DEPARTURES (MAX_ROUTE_NUMBERS_PER_CONFIG * MAX_SCHEDULES * MAX_STOP_TIMES_PER_SCHEDULE)
 extern RealtimeStop *stop_singleton;
 #define MAX_STOP_SINGETON_MUTEX_WAIT_MS 1000
 extern SemaphoreHandle_t stop_singleton_mutex;

@@ -49,12 +49,6 @@ static int count = 0;
 
 static void generate_schedule_text(const RealtimeStop *schedule, char *text, size_t text_size)
 {
-    struct next_trip {
-        unsigned int minutes;
-        char direction[6];
-    } next_trips[MAX_SCHEDULES * MAX_STOP_TIMES_PER_SCHEDULE];
-    size_t trip_count = 0;
-    bool found_route = false;
     size_t line_limit;
 
     if (text_size == 0) {
@@ -62,47 +56,12 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
     }
     text[0] = '\0';
     line_limit = text_size - 1;
-        if (schedule == NULL || schedule->trips == NULL || schedule->searchDateUnix == 0 ||
+        if (schedule == NULL || schedule->departures == NULL ||
             schedule->route_config_index >= ROUTE_CONFIG_COUNT) {
         return;
     }
     if (line_limit > 20) {
         line_limit = 20;
-    }
-
-    for (size_t i = 0; i < MAX_SCHEDULES; i++) {
-        const RealtimeSchedule *route = &schedule->trips[i];
-        if (route->id == NULL || route->routeNumber == NULL || route->stopTimes == NULL) {
-            continue;
-        }
-        found_route = true;
-
-        const char *direction = route->directionName != NULL && route->directionName[0] != '\0'
-            ? route->directionName
-            : "?";
-
-        for (size_t j = 0; j < MAX_STOP_TIMES_PER_SCHEDULE; j++) {
-            const RealtimeStopTime *stop_time = &route->stopTimes[j];
-            if (stop_time->departureTimeUnix <= schedule->searchDateUnix) {
-                continue;
-            }
-
-            unsigned int seconds_until = stop_time->departureTimeUnix - schedule->searchDateUnix;
-            unsigned int minutes_until = seconds_until / 60;
-            size_t insert_at = trip_count;
-            while (insert_at > 0 && next_trips[insert_at - 1].minutes > minutes_until) {
-                next_trips[insert_at] = next_trips[insert_at - 1];
-                insert_at--;
-            }
-            next_trips[insert_at].minutes = minutes_until;
-            snprintf(next_trips[insert_at].direction,
-                     sizeof(next_trips[insert_at].direction), "%.5s", direction);
-            trip_count++;
-        }
-    }
-
-    if (!found_route || ROUTE_CONFIG_COUNT == 0) {
-        return;
     }
 
     int prefix_length = snprintf(text, text_size, "%s: ",
@@ -113,10 +72,28 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
     }
 
     size_t used = (size_t)prefix_length;
-    for (size_t i = 0; i < trip_count; i++) {
+    size_t departure_count = schedule->departure_count;
+    if (departure_count == 0 || schedule->search_date_unix == 0) {
+        if (used + 2 <= line_limit) {
+            memcpy(text + used, "--", 3);
+        }
+        return;
+    }
+    if (departure_count > MAX_MERGED_DEPARTURES) {
+        departure_count = MAX_MERGED_DEPARTURES;
+    }
+    bool show_route_number = ROUTE_CONFIGS[schedule->route_config_index].route_count > 1;
+    for (size_t i = 0; i < departure_count; i++) {
+        const RealtimeDeparture *departure = &schedule->departures[i];
+        if (departure->departure_time_unix <= schedule->search_date_unix) {
+            continue;
+        }
+        unsigned int minutes_until = (departure->departure_time_unix - schedule->search_date_unix + 59) / 60;
         char entry[16];
-        int entry_length = snprintf(entry, sizeof(entry), "%u", next_trips[i].minutes);
-        size_t separator_length = i == 0 ? 0 : 2;
+        int entry_length = show_route_number
+            ? snprintf(entry, sizeof(entry), "%u:%u", (unsigned int)departure->route_number, minutes_until)
+            : snprintf(entry, sizeof(entry), "%u", minutes_until);
+        size_t separator_length = used == (size_t)prefix_length ? 0 : 2;
         if (entry_length < 0 || used + separator_length + (size_t)entry_length > line_limit) {
             break;
         }
@@ -276,6 +253,7 @@ static void schedule_display_task(void *arg)
         }
 
         if (schedule_updated) {
+            ESP_LOGD(TAG, "Updating LCD row %u: %s", (unsigned int)updated_route_index, text);
             lcd_set_cursor(0, updated_route_index);
             lcd_print("                    ");
             lcd_set_cursor(0, updated_route_index);

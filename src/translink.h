@@ -1,5 +1,7 @@
 #include <string.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 // TransLink URLs
 
@@ -264,42 +266,13 @@ Format:
 */
 #define GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(buff, stop, route, size) sprintf(buff, "https://getaway.translink.ca/api/gtfs/stop/%d/route/%d/realtimeschedules?querySize=%d", stop, route, size)
 typedef struct {
-    char *tripID;               // ti
-    char *tripName;             // th
-    char *departureTime;        // dt. (H)H:MM
-    unsigned int departureTimeUnix; // ut
-    int delay;                  // dl
-    char *vehicleID;            // vi
-    bool po;
-    bool do_;                   // do
-    bool no;
-    int ba;
-    bool tp;
-    bool tc;
-    bool cs;
-    bool realTime;              // rt
-} RealtimeStopTime;
+    uint32_t departure_time_unix;
+    uint32_t route_number;
+} RealtimeDeparture;
 
 typedef struct {
-    char * id;                             // ri
-    char * routeNumber;                    // rs 
-    char * routeName;                      // rl 
-    int direction;                              // di
-    char * directionName;                  // dn
-    char * hs;
-    int rt;
-    RealtimeStopTime * stopTimes;    // t
-} RealtimeSchedule;
-
-typedef struct {
-    char * id;
-    char * stopID;                     // sc
-    char * stopName;                   // sn
-    float latitude;                         // la
-    float longitude;                        // lo
-    int wc;
-    char * searchDate;                 // sd. YYYY-MM-DDTHH:MM:SS.sssssss
-    unsigned int searchDateUnix;            // lu
-    unsigned int route_config_index;
-    RealtimeSchedule * trips;    // r
+    uint32_t search_date_unix;
+    size_t route_config_index;
+    size_t departure_count;
+    RealtimeDeparture *departures;
 } RealtimeStop;

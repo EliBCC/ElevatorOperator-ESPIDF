@@ -14,7 +14,6 @@
 #include "cJSON.h"
 
 RealtimeStop *stop_singleton = NULL;
-static cJSON *json_singleton = NULL;
 bool run_update_schedule_task = true;
 SemaphoreHandle_t stop_singleton_mutex;
 uint32_t schedule_generation = 0;
@@ -27,42 +26,26 @@ void init_schedule_updater()
     xSemaphoreTake(stop_singleton_mutex, MAX_STOP_SINGETON_MUTEX_WAIT_MS);
     stop_singleton = (RealtimeStop *)calloc(1, sizeof(RealtimeStop));
     assert(stop_singleton != NULL);
-    RealtimeSchedule *schedules = (RealtimeSchedule *)calloc(1, MAX_SCHEDULES * sizeof(RealtimeSchedule));
-    assert(schedules != NULL);
-    ESP_LOGD(TAG, "Creating schedules object with pointer address %p", schedules);
-    stop_singleton->trips = schedules;
-    ESP_LOGD(TAG, "Assigend value %p to trips", stop_singleton->trips);
-    for (int i = 0; i < MAX_SCHEDULES; i++)
-    {
-        RealtimeStopTime *stop_times = (RealtimeStopTime *)calloc(1, MAX_STOP_TIMES_PER_SCHEDULE * sizeof(RealtimeStopTime));
-        assert(stop_times != NULL);
-        stop_singleton->trips[i].stopTimes = stop_times;
-    }
+    stop_singleton->departures = calloc(MAX_MERGED_DEPARTURES, sizeof(RealtimeDeparture));
+    assert(stop_singleton->departures != NULL);
     xSemaphoreGive(stop_singleton_mutex);
 }
 
 void cleanup_schedule_updater()
 {
-    for(int i = 0; i < MAX_SCHEDULES; i++)
-    {
-        free(stop_singleton->trips[i].stopTimes);
-        stop_singleton->trips[i].stopTimes = NULL;
-    }
-    free(stop_singleton->trips);
-    stop_singleton->trips = NULL;
+    free(stop_singleton->departures);
+    stop_singleton->departures = NULL;
     free(stop_singleton);
     stop_singleton = NULL;
-    cJSON_Delete(json_singleton);
-    json_singleton = NULL;
 }
 
-void get_from_http(http_response_buf_t *response, size_t route_config_index)
+void get_from_http(http_response_buf_t *response, size_t route_config_index, size_t route_number_index)
 {
     ESP_LOGD(TAG, "In get_from_http");
     char url[100]; 
     GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(url,
         ROUTE_CONFIGS[route_config_index].stop_number,
-        ROUTE_CONFIGS[route_config_index].route_number,
+        ROUTE_CONFIGS[route_config_index].route_numbers[route_number_index],
         3);
     ESP_LOGD(TAG, "Requesting url: %s", url);
 
@@ -75,7 +58,8 @@ void get_from_http(http_response_buf_t *response, size_t route_config_index)
     http_get_task((void *)(&request));
 }
 
-void _parse_response_to_struct(http_response_buf_t *response, size_t route_config_index)
+void _parse_response_to_struct(http_response_buf_t *response, size_t route_config_index,
+                               size_t route_number_index)
 {
     if (response == NULL || response->buf == NULL || response->written == 0) {
         ESP_LOGW(TAG, "Cannot parse an empty response");
@@ -99,126 +83,81 @@ void _parse_response_to_struct(http_response_buf_t *response, size_t route_confi
         return;
     }
 
-    cJSON *id = cJSON_GetObjectItemCaseSensitive(json, "id");
-    cJSON *stopID = cJSON_GetObjectItemCaseSensitive(json, "sc");
-    cJSON *stopName = cJSON_GetObjectItemCaseSensitive(json, "sn");
-    cJSON *latitude = cJSON_GetObjectItemCaseSensitive(json, "la");
-    cJSON *longitude = cJSON_GetObjectItemCaseSensitive(json, "lo");
-    cJSON *wc = cJSON_GetObjectItemCaseSensitive(json, "wc");
-    cJSON *searchDate = cJSON_GetObjectItemCaseSensitive(json, "sd");
     cJSON *searchDateUnix = cJSON_GetObjectItemCaseSensitive(json, "lu");
     cJSON *trips = cJSON_GetObjectItemCaseSensitive(json, "r");
 
-    if (!cJSON_IsNumber(latitude) || !cJSON_IsNumber(longitude) ||
-            !cJSON_IsNumber(wc) || !cJSON_IsNumber(searchDateUnix) ||
-            !cJSON_IsArray(trips)) {
+    if (!cJSON_IsNumber(searchDateUnix) || !cJSON_IsArray(trips)) {
         ESP_LOGW(TAG, "Schedule response is missing required fields");
         cJSON_Delete(json_document);
         return;
     }
 
-    ESP_LOGD(TAG, "Parsing into stop singleton struct with pointer %p", stop_singleton);
-    ESP_LOGD(TAG, "Before, trips has pointer %p", stop_singleton->trips);
-    xSemaphoreTake(stop_singleton_mutex, MAX_STOP_SINGETON_MUTEX_WAIT_MS);
-    *stop_singleton = (RealtimeStop){
-        .id = cJSON_GetStringValue(id), // don't use cJSON_Print
-        .stopID = cJSON_GetStringValue(stopID),
-        .stopName = cJSON_GetStringValue(stopName),
-        .latitude = (float)latitude->valuedouble, // direct field access
-        .longitude = (float)longitude->valuedouble,
-        .wc = wc->valueint,
-        .searchDate = cJSON_GetStringValue(searchDate),
-        .searchDateUnix = (unsigned int)searchDateUnix->valuedouble,
-        .route_config_index = route_config_index,
-        .trips = stop_singleton->trips};
-    ESP_LOGD(TAG, "After, trips has pointer %p", stop_singleton->trips);
-
-    ESP_LOGD(TAG, "Successfully parsed stop singleton. Created stop with id %s", stop_singleton->id);
-
-    int trip_count = cJSON_GetArraySize(trips);
-    int i = 0;
+    RealtimeDeparture parsed_departures[MAX_SCHEDULES * MAX_STOP_TIMES_PER_SCHEDULE];
+    size_t parsed_count = 0;
+    uint32_t search_date_unix = (uint32_t)searchDateUnix->valuedouble;
+    size_t schedule_count = 0;
     cJSON *j_trip;
     cJSON_ArrayForEach(j_trip, trips)
     {
-        ESP_LOGD(TAG, "Updating schedule for trip %d", i);
-        if (trip_count >= MAX_SCHEDULES)
-        {
-            ESP_LOGW(TAG, "Insufficient buffer for number of trips. Found %d trips. Truncating", trip_count);
+        if (schedule_count++ >= MAX_SCHEDULES) {
+            ESP_LOGW(TAG, "Too many schedules in response; truncating");
             break;
         }
-
-        cJSON *j_di = cJSON_GetObjectItemCaseSensitive(j_trip, "di");
-        cJSON *j_rt = cJSON_GetObjectItemCaseSensitive(j_trip, "rt");
-        ESP_LOGD(TAG, "stop_singleton trips pointer is %p", stop_singleton->trips);
-        stop_singleton->trips[i] = (RealtimeSchedule){
-            .id = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_trip, "ri")),
-            .routeNumber = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_trip, "rs")),
-            .routeName = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_trip, "rl")),
-            .direction = j_di ? j_di->valueint : 0,
-            .directionName = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_trip, "dn")),
-            .hs = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_trip, "hs")),
-            .rt = j_rt ? j_rt->valueint : 0,
-            .stopTimes = stop_singleton->trips[i].stopTimes};
-
         cJSON *j_times = cJSON_GetObjectItemCaseSensitive(j_trip, "t");
-        int time_count = cJSON_GetArraySize(j_times);
+        if (!cJSON_IsArray(j_times)) {
+            continue;
+        }
 
-        int k = 0;
+        size_t time_count = 0;
         cJSON *j_time;
         cJSON_ArrayForEach(j_time, j_times)
         {
-            ESP_LOGD(TAG, "Updating stop %d of trip %d", k, i);
-            if (k >= MAX_STOP_TIMES_PER_SCHEDULE)
-            {
-                ESP_LOGW(TAG, "Insufficient buffer for number of times. Found %d times for trip %d. Truncating", time_count, i);
+            if (time_count++ >= MAX_STOP_TIMES_PER_SCHEDULE) {
+                ESP_LOGW(TAG, "Too many stop times in schedule; truncating");
                 break;
             }
             cJSON *j_ut = cJSON_GetObjectItemCaseSensitive(j_time, "ut");
-            cJSON *j_dl = cJSON_GetObjectItemCaseSensitive(j_time, "dl");
-            cJSON *j_ba = cJSON_GetObjectItemCaseSensitive(j_time, "ba");
-            stop_singleton->trips[i].stopTimes[k] = (RealtimeStopTime){
-                .tripID = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_time, "ti")),
-                .tripName = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_time, "th")),
-                .departureTime = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_time, "dt")),
-                .departureTimeUnix = j_ut ? (unsigned int)j_ut->valuedouble : 0,
-                .delay = j_dl ? j_dl->valueint : 0,
-                .vehicleID = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j_time, "vi")),
-                .po = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "po")),
-                .do_ = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "do")),
-                .no = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "no")),
-                .ba = j_ba ? j_ba->valueint : 0,
-                .tp = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "tp")),
-                .tc = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "tc")),
-                .cs = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "cs")),
-                .realTime = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j_time, "rt"))};
-            k++;
+            if (!cJSON_IsNumber(j_ut)) {
+                continue;
+            }
+            uint32_t departure_time = (uint32_t)j_ut->valuedouble;
+            if (departure_time <= search_date_unix || parsed_count >= MAX_SCHEDULES * MAX_STOP_TIMES_PER_SCHEDULE) {
+                continue;
+            }
+            parsed_departures[parsed_count++] = (RealtimeDeparture){
+                .departure_time_unix = departure_time,
+                .route_number = ROUTE_CONFIGS[route_config_index].route_numbers[route_number_index]};
         }
-        for (; k < MAX_STOP_TIMES_PER_SCHEDULE; k++)
-        {
-            // Set stop IDs to 0 to indicate that they are not valid
-            stop_singleton->trips[i].stopTimes[k].tripID = INVALID_ID;
+    }
+
+    if (xSemaphoreTake(stop_singleton_mutex, pdMS_TO_TICKS(MAX_STOP_SINGETON_MUTEX_WAIT_MS)) != pdTRUE) {
+        cJSON_Delete(json_document);
+        return;
+    }
+    if (route_config_index == stop_singleton->route_config_index) {
+        if (search_date_unix > stop_singleton->search_date_unix) {
+            stop_singleton->search_date_unix = search_date_unix;
         }
-        i++;
+        for (size_t i = 0; i < parsed_count; i++) {
+            size_t insert_at = stop_singleton->departure_count;
+            if (insert_at >= MAX_MERGED_DEPARTURES) {
+                ESP_LOGW(TAG, "Merged departure buffer full; truncating");
+                break;
+            }
+            while (insert_at > 0 && stop_singleton->departures[insert_at - 1].departure_time_unix >
+                    parsed_departures[i].departure_time_unix) {
+                stop_singleton->departures[insert_at] = stop_singleton->departures[insert_at - 1];
+                insert_at--;
+            }
+            stop_singleton->departures[insert_at] = parsed_departures[i];
+            stop_singleton->departure_count++;
+        }
     }
-    for (; i < MAX_SCHEDULES; i++)
-    {
-        // Set trip IDs to 0 to indicate that they are not valid
-        stop_singleton->trips[i].id = INVALID_ID;
-    }
-    schedule_generation++;
     xSemaphoreGive(stop_singleton_mutex);
-
-    ESP_LOGD(TAG, "Parsed into struct. E.g. trip name is: %s", stop_singleton->trips[0].stopTimes[0].tripName);
-
-    // Swap in the new JSON object and release the previous one.
-    // All char* fields in the struct point into json_singleton, so the old
-    // one must not be deleted until the struct has been fully repopulated.
-    cJSON_Delete(json_singleton);
-    json_singleton = json_document;
-    ESP_LOGD(TAG, "Freed JSON");
+    cJSON_Delete(json_document);
 }
 
-void _update_schedule(size_t route_config_index)
+void _update_schedule(size_t route_config_index, size_t route_number_index)
 {
     ESP_LOGD(TAG, "In update_schedule");
     char raw_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
@@ -228,7 +167,7 @@ void _update_schedule(size_t route_config_index)
         .written = 0
     };
 
-    get_from_http(&response, route_config_index);
+    get_from_http(&response, route_config_index, route_number_index);
 
     ESP_LOGI(TAG, "Received: \n%.*s", response.written, response.buf);
 
@@ -238,28 +177,55 @@ void _update_schedule(size_t route_config_index)
         return;
     }
 
-    _parse_response_to_struct(&response, route_config_index);
+    _parse_response_to_struct(&response, route_config_index, route_number_index);
 }
 
-void _clean_up()
+static void begin_route_group(size_t route_config_index)
 {
-    if (json_singleton != NULL)
-    {
-        cJSON_Delete(json_singleton);
-        json_singleton = NULL;
+    if (xSemaphoreTake(stop_singleton_mutex, pdMS_TO_TICKS(MAX_STOP_SINGETON_MUTEX_WAIT_MS)) == pdTRUE) {
+        stop_singleton->route_config_index = route_config_index;
+        stop_singleton->search_date_unix = 0;
+        stop_singleton->departure_count = 0;
+        xSemaphoreGive(stop_singleton_mutex);
     }
 }
 
 void update_schedule()
 {
-    size_t route_config_index = 0;
-    TickType_t route_period = PERIOD_MS / ROUTE_CONFIG_COUNT;
+    size_t request_count = 0;
+    for (size_t i = 0; i < ROUTE_CONFIG_COUNT; i++) {
+        request_count += ROUTE_CONFIGS[i].route_count;
+    }
+    if (request_count == 0) {
+        ESP_LOGE(TAG, "No route requests are configured");
+        return;
+    }
+
+    TickType_t route_period = PERIOD_MS / request_count;
+    if (route_period == 0) {
+        route_period = 1;
+    }
 
     while(run_update_schedule_task)
     {
-        _update_schedule(route_config_index);
-        route_config_index = (route_config_index + 1) % ROUTE_CONFIG_COUNT;
-        vTaskDelay(route_period);
+        for (size_t route_config_index = 0;
+                route_config_index < ROUTE_CONFIG_COUNT && run_update_schedule_task;
+                route_config_index++) {
+            begin_route_group(route_config_index);
+            for (size_t route_number_index = 0;
+                    route_number_index < ROUTE_CONFIGS[route_config_index].route_count;
+                    route_number_index++) {
+                _update_schedule(route_config_index, route_number_index);
+                if (route_number_index + 1 < ROUTE_CONFIGS[route_config_index].route_count) {
+                    vTaskDelay(route_period);
+                }
+            }
+
+            if (xSemaphoreTake(stop_singleton_mutex, pdMS_TO_TICKS(MAX_STOP_SINGETON_MUTEX_WAIT_MS)) == pdTRUE) {
+                schedule_generation++;
+                xSemaphoreGive(stop_singleton_mutex);
+            }
+            vTaskDelay(route_period);
+        }
     }
-    _clean_up();
 }
