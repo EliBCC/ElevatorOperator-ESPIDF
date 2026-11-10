@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include <stdbool.h>
 #include <string.h>
+#include <ctype.h>
 #include "update_schedules.h"
 
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
@@ -48,14 +49,83 @@ static int count = 0;
 
 static void generate_schedule_text(const RealtimeStop *schedule, char *text, size_t text_size)
 {
-    (void)schedule;
-    if (text_size > 0) {
-        text[0] = '\0';
+    struct next_trip {
+        unsigned int minutes;
+        char direction;
+    } next_trips[MAX_SCHEDULES * MAX_STOP_TIMES_PER_SCHEDULE];
+    size_t trip_count = 0;
+    const char *route_number = NULL;
+    size_t line_limit;
+
+    if (text_size == 0) {
+        return;
+    }
+    text[0] = '\0';
+    line_limit = text_size - 1;
+    if (schedule == NULL || schedule->trips == NULL || schedule->searchDateUnix == 0) {
+        return;
+    }
+    if (line_limit > 20) {
+        line_limit = 20;
     }
 
-    sprintf(text, "%i", count++);
-    text_size = 1;
+    for (size_t i = 0; i < MAX_SCHEDULES; i++) {
+        const RealtimeSchedule *route = &schedule->trips[i];
+        if (route->id == NULL || route->routeNumber == NULL || route->stopTimes == NULL) {
+            continue;
+        }
+        if (route_number == NULL) {
+            route_number = route->routeNumber;
+        }
 
+        char direction = route->directionName != NULL && route->directionName[0] != '\0'
+            ? (char)toupper((unsigned char)route->directionName[0])
+            : '?';
+
+        for (size_t j = 0; j < MAX_STOP_TIMES_PER_SCHEDULE; j++) {
+            const RealtimeStopTime *stop_time = &route->stopTimes[j];
+            if (stop_time->departureTimeUnix <= schedule->searchDateUnix) {
+                continue;
+            }
+
+            unsigned int seconds_until = stop_time->departureTimeUnix - schedule->searchDateUnix;
+            unsigned int minutes_until = (seconds_until + 59) / 60;
+            size_t insert_at = trip_count;
+            while (insert_at > 0 && next_trips[insert_at - 1].minutes > minutes_until) {
+                next_trips[insert_at] = next_trips[insert_at - 1];
+                insert_at--;
+            }
+            next_trips[insert_at].minutes = minutes_until;
+            next_trips[insert_at].direction = direction;
+            trip_count++;
+        }
+    }
+
+    if (route_number == NULL) {
+        return;
+    }
+
+    int prefix_length = snprintf(text, text_size, "%s: ", route_number);
+    if (prefix_length < 0 || (size_t)prefix_length > line_limit) {
+        text[0] = '\0';
+        return;
+    }
+
+    size_t used = (size_t)prefix_length;
+    for (size_t i = 0; i < trip_count; i++) {
+        char entry[16];
+        int entry_length = snprintf(entry, sizeof(entry), "%u(%c)", next_trips[i].minutes, next_trips[i].direction);
+        size_t separator_length = i == 0 ? 0 : 2;
+        if (entry_length < 0 || used + separator_length + (size_t)entry_length > line_limit) {
+            break;
+        }
+        if (separator_length != 0) {
+            memcpy(text + used, ", ", separator_length);
+            used += separator_length;
+        }
+        memcpy(text + used, entry, (size_t)entry_length + 1);
+        used += (size_t)entry_length;
+    }
 }
 
 // ── Low-level ────────────────────────────────────────────────────────────────
@@ -201,7 +271,8 @@ static void schedule_display_task(void *arg)
         }
 
         if (schedule_updated) {
-            lcd_clear();
+            lcd_set_cursor(0, 0);
+            lcd_print("                    ");
             lcd_set_cursor(0, 0);
             lcd_print(text);
         }
