@@ -44,7 +44,7 @@ static uint8_t s_bl = LCD_BL;
 
 static esp_err_t pcf_write(uint8_t byte)
 {
-    return i2c_master_transmit(s_lcd, &byte, 1, pdMS_TO_TICKS(10));
+    return i2c_master_transmit(s_lcd, &byte, 1, 50);
 }
 
 // Pulse EN high → low with the supplied data byte
@@ -166,10 +166,22 @@ void lcd_backlight(bool on)
 
 void display()
 {
+    ESP_LOGD(TAG, "In display routine");
     i2c_master_bus_handle_t i2c_bus;
     init_i2c(&i2c_bus, &s_lcd);
+    for (uint8_t addr = 0x08; addr <= 0x77; ++addr) {
+        esp_err_t err = i2c_master_probe(i2c_bus, addr, 50);
+
+        if (err == ESP_OK) {
+            ESP_LOGI(TAG, "Found I2C device at 0x%02X", addr);
+        } else if (err != ESP_ERR_NOT_FOUND) {
+            ESP_LOGW(TAG, "Probe 0x%02X failed: %s",
+                    addr, esp_err_to_name(err));
+        }
+    }
     lcd_init();
 
     lcd_set_cursor(0, 0);
     lcd_print("Hello, World!");
+    ESP_LOGD(TAG, "Finished display routine");
 }

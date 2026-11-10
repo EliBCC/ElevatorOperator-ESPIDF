@@ -111,24 +111,6 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             break;
         case HTTP_EVENT_ON_DATA:
             ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
-            // // If user_data is not NULL, it means buffer is passed from user, append data to it.
-            // if (evt->user_data != NULL) {
-            //     ESP_LOGD(TAG, "user_data is not NULL, appending");
-            //     memcpy(evt->user_data + output_len, evt->data, evt->data_len);
-            // } else { // Otherwise, allocate new buffer and copy data.
-            //     ESP_LOGD(TAG, "user_data is NULL, create new buffer");
-            //     if (output_buffer == NULL) {
-            //         size_t output_buffer_size = (size_t) esp_http_client_get_content_length(evt->client) + 1;
-            //         ESP_LOGD(TAG, "output_buffer is null, allocate %d bytes", output_buffer_size);
-            //         ESP_LOGD(TAG, "heap_caps_get_largest_free_block: %d\n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-            //         // Allocate dynamic buffer to store response data
-            //         output_buffer = (char *) malloc(output_buffer_size);
-            //         output_len = 0;
-            //         if (output_buffer == NULL) {
-            //             ESP_LOGE(TAG, "Failed to allocate memory for output buffer");
-            //             return ESP_FAIL;
-            //         }
-            //     }
             if (resp->written + evt->data_len >= resp->size) {
                 ESP_LOGE(TAG, "Response too large for buffer. Writing %d bytes, found %d bytes remaining.", evt->data_len, resp->size - resp->written);
                 return ESP_FAIL;
