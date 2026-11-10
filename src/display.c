@@ -88,7 +88,7 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
         if (departure->departure_time_unix <= schedule->search_date_unix) {
             continue;
         }
-        unsigned int minutes_until = (departure->departure_time_unix - schedule->search_date_unix + 59) / 60;
+        unsigned int minutes_until = (departure->departure_time_unix - schedule->search_date_unix) / 60;
         char entry[16];
         int entry_length = show_route_number
             ? snprintf(entry, sizeof(entry), "%u:%u", (unsigned int)departure->route_number, minutes_until)
