@@ -41,12 +41,12 @@ void app_main(void)
 
     wifi_init_sta();
     init_schedule_updater();
-    // xTaskCreate(&update_schedule, "update_schedule", 16384, NULL, 5, NULL);
-
-    // loop();
-
-    // cleanup_schedule_updater();
-
     display();
+    xTaskCreate(&update_schedule, "update_schedule", 16384, NULL, 5, NULL);
+
+    loop();
+
+    cleanup_schedule_updater();
+
 }
 

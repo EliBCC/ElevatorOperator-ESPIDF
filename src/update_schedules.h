@@ -10,6 +10,7 @@
 extern RealtimeStop *stop_singleton;
 #define MAX_STOP_SINGETON_MUTEX_WAIT_MS 1000
 extern SemaphoreHandle_t stop_singleton_mutex;
+extern uint32_t schedule_generation;
 
 #define INVALID_ID '\0'      // IDs used to mark singleton objects as not valid, when the full array is not used
 

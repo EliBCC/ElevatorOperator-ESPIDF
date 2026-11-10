@@ -14,6 +14,7 @@ RealtimeStop *stop_singleton = NULL;
 static cJSON *json_singleton = NULL;
 bool run_update_schedule_task = true;
 SemaphoreHandle_t stop_singleton_mutex;
+uint32_t schedule_generation = 0;
 
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 
@@ -187,6 +188,7 @@ void _parse_response_to_struct(http_response_buf_t *response)
         // Set trip IDs to 0 to indicate that they are not valid
         stop_singleton->trips[i].id = INVALID_ID;
     }
+    schedule_generation++;
     xSemaphoreGive(stop_singleton_mutex);
 
     ESP_LOGD(TAG, "Parsed into struct. E.g. trip name is: %s", stop_singleton->trips[0].stopTimes[0].tripName);

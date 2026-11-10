@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include "freertos/task.h"
 #include <stdbool.h>
+#include <string.h>
+#include "update_schedules.h"
 
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 
@@ -39,6 +41,22 @@ static const uint8_t ROW_ADDR[4] = { 0x00, 0x40, 0x14, 0x54 };
 
 static i2c_master_dev_handle_t s_lcd;
 static uint8_t s_bl = LCD_BL;
+
+#define LCD_TEXT_SIZE 81
+
+static int count = 0;
+
+static void generate_schedule_text(const RealtimeStop *schedule, char *text, size_t text_size)
+{
+    (void)schedule;
+    if (text_size > 0) {
+        text[0] = '\0';
+    }
+
+    sprintf(text, "%i", count++);
+    text_size = 1;
+
+}
 
 // ── Low-level ────────────────────────────────────────────────────────────────
 
@@ -164,6 +182,34 @@ void lcd_backlight(bool on)
     pcf_write(s_bl);
 }
 
+static void schedule_display_task(void *arg)
+{
+    uint32_t displayed_generation = 0;
+    (void)arg;
+
+    while (true) {
+        char text[LCD_TEXT_SIZE] = {0};
+        bool schedule_updated = false;
+
+        if (xSemaphoreTake(stop_singleton_mutex, pdMS_TO_TICKS(MAX_STOP_SINGETON_MUTEX_WAIT_MS)) == pdTRUE) {
+            if (schedule_generation != displayed_generation) {
+                generate_schedule_text(stop_singleton, text, sizeof(text));
+                displayed_generation = schedule_generation;
+                schedule_updated = true;
+            }
+            xSemaphoreGive(stop_singleton_mutex);
+        }
+
+        if (schedule_updated) {
+            lcd_clear();
+            lcd_set_cursor(0, 0);
+            lcd_print(text);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(250));
+    }
+}
+
 void display()
 {
     ESP_LOGD(TAG, "In display routine");
@@ -183,5 +229,9 @@ void display()
 
     lcd_set_cursor(0, 0);
     lcd_print("Hello, World!");
+    BaseType_t task_created = xTaskCreate(schedule_display_task, "schedule_display", 4096, NULL, 4, NULL);
+    if (task_created != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create schedule display task");
+    }
     ESP_LOGD(TAG, "Finished display routine");
 }
