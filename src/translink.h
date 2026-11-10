@@ -300,5 +300,6 @@ typedef struct {
     int wc;
     char * searchDate;                 // sd. YYYY-MM-DDTHH:MM:SS.sssssss
     unsigned int searchDateUnix;            // lu
+    unsigned int route_config_index;
     RealtimeSchedule * trips;    // r
 } RealtimeStop;

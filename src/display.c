@@ -62,7 +62,8 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
     }
     text[0] = '\0';
     line_limit = text_size - 1;
-    if (schedule == NULL || schedule->trips == NULL || schedule->searchDateUnix == 0) {
+        if (schedule == NULL || schedule->trips == NULL || schedule->searchDateUnix == 0 ||
+            schedule->route_config_index >= ROUTE_CONFIG_COUNT) {
         return;
     }
     if (line_limit > 20) {
@@ -104,7 +105,8 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
         return;
     }
 
-    int prefix_length = snprintf(text, text_size, "%s: ", ROUTE_CONFIGS[0].name);
+    int prefix_length = snprintf(text, text_size, "%s: ",
+                                 ROUTE_CONFIGS[schedule->route_config_index].name);
     if (prefix_length < 0 || (size_t)prefix_length > line_limit) {
         text[0] = '\0';
         return;
@@ -259,20 +261,24 @@ static void schedule_display_task(void *arg)
     while (true) {
         char text[LCD_TEXT_SIZE] = {0};
         bool schedule_updated = false;
+        size_t updated_route_index = ROUTE_CONFIG_COUNT;
 
         if (xSemaphoreTake(stop_singleton_mutex, pdMS_TO_TICKS(MAX_STOP_SINGETON_MUTEX_WAIT_MS)) == pdTRUE) {
             if (schedule_generation != displayed_generation) {
                 generate_schedule_text(stop_singleton, text, sizeof(text));
                 displayed_generation = schedule_generation;
-                schedule_updated = true;
+                if (stop_singleton->route_config_index < ROUTE_CONFIG_COUNT) {
+                    updated_route_index = stop_singleton->route_config_index;
+                    schedule_updated = true;
+                }
             }
             xSemaphoreGive(stop_singleton_mutex);
         }
 
         if (schedule_updated) {
-            lcd_set_cursor(0, 0);
+            lcd_set_cursor(0, updated_route_index);
             lcd_print("                    ");
-            lcd_set_cursor(0, 0);
+            lcd_set_cursor(0, updated_route_index);
             lcd_print(text);
         }
 

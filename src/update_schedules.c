@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
+
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -16,8 +18,6 @@ static cJSON *json_singleton = NULL;
 bool run_update_schedule_task = true;
 SemaphoreHandle_t stop_singleton_mutex;
 uint32_t schedule_generation = 0;
-
-#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 
 static const char *TAG = "update_schedules";
 
@@ -56,14 +56,14 @@ void cleanup_schedule_updater()
     json_singleton = NULL;
 }
 
-void get_from_http(http_response_buf_t *response)
+void get_from_http(http_response_buf_t *response, size_t route_config_index)
 {
     ESP_LOGD(TAG, "In get_from_http");
     char url[100]; 
-        GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(url,
-            ROUTE_CONFIGS[0].stop_number,
-            ROUTE_CONFIGS[0].route_number,
-            3);
+    GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(url,
+        ROUTE_CONFIGS[route_config_index].stop_number,
+        ROUTE_CONFIGS[route_config_index].route_number,
+        3);
     ESP_LOGD(TAG, "Requesting url: %s", url);
 
     ESP_LOGD(TAG, "Response has address %p", response);
@@ -75,7 +75,7 @@ void get_from_http(http_response_buf_t *response)
     http_get_task((void *)(&request));
 }
 
-void _parse_response_to_struct(http_response_buf_t *response)
+void _parse_response_to_struct(http_response_buf_t *response, size_t route_config_index)
 {
     // Strip square brackets, if present
     int lhs_offset = 0;
@@ -116,6 +116,7 @@ void _parse_response_to_struct(http_response_buf_t *response)
         .wc = wc->valueint,
         .searchDate = cJSON_GetStringValue(searchDate),
         .searchDateUnix = (unsigned int)searchDateUnix->valuedouble,
+        .route_config_index = route_config_index,
         .trips = stop_singleton->trips};
     ESP_LOGD(TAG, "After, trips has pointer %p", stop_singleton->trips);
 
@@ -204,7 +205,7 @@ void _parse_response_to_struct(http_response_buf_t *response)
     ESP_LOGD(TAG, "Freed JSON");
 }
 
-void _update_schedule()
+void _update_schedule(size_t route_config_index)
 {
     ESP_LOGD(TAG, "In update_schedule");
     char raw_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
@@ -214,7 +215,7 @@ void _update_schedule()
         .written = 0
     };
 
-    get_from_http(&response);
+    get_from_http(&response, route_config_index);
 
     ESP_LOGI(TAG, "Received: \n%.*s", response.written, response.buf);
 
@@ -224,7 +225,7 @@ void _update_schedule()
         return;
     }
 
-    _parse_response_to_struct(&response);
+    _parse_response_to_struct(&response, route_config_index);
 }
 
 void _clean_up()
@@ -238,10 +239,14 @@ void _clean_up()
 
 void update_schedule()
 {
+    size_t route_config_index = 0;
+    TickType_t route_period = PERIOD_MS / ROUTE_CONFIG_COUNT;
+
     while(run_update_schedule_task)
     {
-        _update_schedule();
-        vTaskDelay(PERIOD_MS);
+        _update_schedule(route_config_index);
+        route_config_index = (route_config_index + 1) % ROUTE_CONFIG_COUNT;
+        vTaskDelay(route_period);
     }
     _clean_up();
 }
