@@ -5,7 +5,6 @@
 #include "freertos/task.h"
 #include <stdbool.h>
 #include <string.h>
-#include <ctype.h>
 #include "update_schedules.h"
 
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
@@ -51,7 +50,7 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
 {
     struct next_trip {
         unsigned int minutes;
-        char direction;
+        char direction[6];
     } next_trips[MAX_SCHEDULES * MAX_STOP_TIMES_PER_SCHEDULE];
     size_t trip_count = 0;
     const char *route_number = NULL;
@@ -78,9 +77,9 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
             route_number = route->routeNumber;
         }
 
-        char direction = route->directionName != NULL && route->directionName[0] != '\0'
-            ? (char)toupper((unsigned char)route->directionName[0])
-            : '?';
+        const char *direction = route->directionName != NULL && route->directionName[0] != '\0'
+            ? route->directionName
+            : "?";
 
         for (size_t j = 0; j < MAX_STOP_TIMES_PER_SCHEDULE; j++) {
             const RealtimeStopTime *stop_time = &route->stopTimes[j];
@@ -96,7 +95,8 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
                 insert_at--;
             }
             next_trips[insert_at].minutes = minutes_until;
-            next_trips[insert_at].direction = direction;
+            snprintf(next_trips[insert_at].direction,
+                     sizeof(next_trips[insert_at].direction), "%.5s", direction);
             trip_count++;
         }
     }
@@ -104,8 +104,9 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
     if (route_number == NULL) {
         return;
     }
-
-    int prefix_length = snprintf(text, text_size, "%s %5s: ", route_number, next_trips[0].direction);
+    
+    const char *direction = trip_count > 0 ? next_trips[0].direction : "";
+    int prefix_length = snprintf(text, text_size, "%s %5.5s: ", route_number, direction);
     if (prefix_length < 0 || (size_t)prefix_length > line_limit) {
         text[0] = '\0';
         return;
