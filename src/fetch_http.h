@@ -2,6 +2,7 @@
 #define FETCH_HTTP_H
 
 #include <stddef.h>
+#include "esp_err.h"
 
 #define WIFI_TIMEOUT_MS     10 * 1000
 #define MAX_FAILURES   10
@@ -20,6 +21,6 @@ typedef struct {
     char *url;
 } http_request_params_t;
 
-void wifi_init_sta(void);
+esp_err_t wifi_init_sta(void);
 void http_get_task(void *pvParameters);
 #endif

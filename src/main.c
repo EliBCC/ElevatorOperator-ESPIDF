@@ -37,9 +37,15 @@ void app_main(void)
 
     esp_log_level_set("*", ESP_LOG_DEBUG);
 
-    wifi_init_sta();
     init_schedule_updater();
     display();
+
+    esp_err_t wifi_result = wifi_init_sta();
+    if (wifi_result != ESP_OK) {
+        display_show_error("Wi-Fi connection", "failed");
+        loop();
+    }
+
     BaseType_t task_created = xTaskCreate(&update_schedule, "update_schedule", 16384, NULL, 5, NULL);
     ESP_ERROR_CHECK(task_created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 

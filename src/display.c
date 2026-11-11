@@ -221,6 +221,15 @@ void lcd_clear(void)
     vTaskDelay(pdMS_TO_TICKS(2));
 }
 
+void display_show_error(const char *line1, const char *line2)
+{
+    lcd_clear();
+    lcd_set_cursor(0, 0);
+    lcd_print(line1);
+    lcd_set_cursor(0, 1);
+    lcd_print(line2);
+}
+
 void lcd_backlight(bool on)
 {
     s_bl = on ? LCD_BL : 0;
