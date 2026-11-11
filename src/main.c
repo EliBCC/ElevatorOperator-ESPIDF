@@ -42,7 +42,8 @@ void app_main(void)
     wifi_init_sta();
     init_schedule_updater();
     display();
-    xTaskCreate(&update_schedule, "update_schedule", 16384, NULL, 5, NULL);
+    BaseType_t task_created = xTaskCreate(&update_schedule, "update_schedule", 16384, NULL, 5, NULL);
+    ESP_ERROR_CHECK(task_created == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 
     loop();
 
