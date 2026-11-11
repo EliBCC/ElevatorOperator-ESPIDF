@@ -107,7 +107,11 @@ static void generate_schedule_text(const RealtimeStop *schedule, char *text, siz
 
 static esp_err_t pcf_write(uint8_t byte)
 {
-    return i2c_master_transmit(s_lcd, &byte, 1, 50);
+    esp_err_t err = i2c_master_transmit(s_lcd, &byte, 1, 50);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "LCD I2C write 0x%02X failed: %s", byte, esp_err_to_name(err));
+    }
+    return err;
 }
 
 // Pulse EN high → low with the supplied data byte
@@ -162,7 +166,7 @@ void init_i2c(i2c_master_bus_handle_t *i2c_bus, i2c_master_dev_handle_t *lcd_dev
     // Initialize the I2C bus
     esp_ret = i2c_new_master_bus(&bus_config, i2c_bus);
     if (esp_ret != ESP_OK) {
-        ESP_LOGD(TAG, "Error: Failed to initialize I2C bus\r\n");
+        ESP_LOGE(TAG, "Failed to initialize I2C bus: %s", esp_err_to_name(esp_ret));
         abort();
     }
     // Set I2C device configuration
@@ -174,7 +178,7 @@ void init_i2c(i2c_master_bus_handle_t *i2c_bus, i2c_master_dev_handle_t *lcd_dev
 
     esp_ret = i2c_master_bus_add_device(*i2c_bus, &dev_config, lcd_dev);
     if (esp_ret != ESP_OK) {
-        ESP_LOGD(TAG, "Error: Failed to initialize I2C device\r\n");
+        ESP_LOGE(TAG, "Failed to initialize LCD I2C device: %s", esp_err_to_name(esp_ret));
         abort();
     }
 
