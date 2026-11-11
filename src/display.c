@@ -21,7 +21,6 @@ static const gpio_num_t i2c_scl_pin = 23;            // GPIO number for SCL
 static const uint8_t i2c_glitch_ignore_cnt = 7;     // 7 is typical
 static const uint16_t lcd_addr = 0x27;              // WYTP26-2004BL I2C address
 static const uint32_t scl_speed_hz = 100000;        // 100kHz (standard mode)
-static const uint32_t sleep_time_ms = 1000;
 
 // PCF8574 → HD44780 pin mapping
 #define LCD_RS  0x01    // P0
@@ -44,8 +43,6 @@ static i2c_master_dev_handle_t s_lcd;
 static uint8_t s_bl = LCD_BL;
 
 #define LCD_TEXT_SIZE 81
-
-static int count = 0;
 
 static void generate_schedule_text(const RealtimeStop *schedule, char *text, size_t text_size)
 {

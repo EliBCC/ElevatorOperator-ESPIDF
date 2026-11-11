@@ -16,8 +16,6 @@
 #include "update_schedules.h"
 #include "display.h"
 
-#define BAUD_RATE           11520
-
 static const char *TAG = "main";
 
 void loop(void)
