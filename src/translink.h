@@ -2,6 +2,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <inttypes.h>
+#include <stdio.h>
 
 // TransLink URLs
 
@@ -119,7 +121,17 @@ Format:
     "sheetEndDate": datetime    // "YYYY-MM-DD"
 }
 */
-#define GET_NEXT_TRIP_FOR_ROUTE_AND_DIRECTION(buff, route, direction) sprintf(buff, "https://getaway.translink.ca/api/gtfs/route/%d/direction/%d/nexttrip", route, direction)
+static inline bool translink_build_next_trip_url(char *buffer, size_t buffer_size,
+                                                  int route, int direction)
+{
+    if (buffer == NULL || buffer_size == 0) {
+        return false;
+    }
+    int length = snprintf(buffer, buffer_size,
+                          "https://getaway.translink.ca/api/gtfs/route/%d/direction/%d/nexttrip",
+                          route, direction);
+    return length >= 0 && (size_t)length < buffer_size;
+}
 
 typedef struct {
     char * searchDateTime;             // YYYY-MM-DDTHH:MM:SS
@@ -175,7 +187,17 @@ Format:
 }            
 */
 
-#define GET_ALL_TRIPS_FOR_ROUTE_DIRECTION_AND_DAY(buff, route, direction, day) sprintf(buff, "https://getaway.translink.ca/api/gtfs/route/%d/direction/%d/schedules/%s", route, direction, day)
+static inline bool translink_build_schedule_url(char *buffer, size_t buffer_size,
+                                                 int route, int direction, const char *day)
+{
+    if (buffer == NULL || buffer_size == 0 || day == NULL) {
+        return false;
+    }
+    int length = snprintf(buffer, buffer_size,
+                          "https://getaway.translink.ca/api/gtfs/route/%d/direction/%d/schedules/%s",
+                          route, direction, day);
+    return length >= 0 && (size_t)length < buffer_size;
+}
 
 typedef struct {
     int directionID;                // di
@@ -264,7 +286,19 @@ Format:
 ]
 
 */
-#define GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(buff, stop, route, size) sprintf(buff, "https://getaway.translink.ca/api/gtfs/stop/%d/route/%d/realtimeschedules?querySize=%d", stop, route, size)
+static inline bool translink_build_realtime_schedule_url(char *buffer, size_t buffer_size,
+                                                          uint32_t stop, uint32_t route,
+                                                          uint32_t query_size)
+{
+    if (buffer == NULL || buffer_size == 0) {
+        return false;
+    }
+    int length = snprintf(buffer, buffer_size,
+                          "https://getaway.translink.ca/api/gtfs/stop/%" PRIu32
+                          "/route/%" PRIu32 "/realtimeschedules?querySize=%" PRIu32,
+                          stop, route, query_size);
+    return length >= 0 && (size_t)length < buffer_size;
+}
 typedef struct {
     uint32_t departure_time_unix;
     uint32_t route_number;

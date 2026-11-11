@@ -42,11 +42,14 @@ void cleanup_schedule_updater()
 void get_from_http(http_response_buf_t *response, size_t route_config_index, size_t route_number_index)
 {
     ESP_LOGD(TAG, "In get_from_http");
-    char url[100]; 
-    GET_REALTIME_SCHEDULE_FOR_STOP_AND_ROUTE(url,
+    char url[100];
+    if (!translink_build_realtime_schedule_url(url, sizeof(url),
         ROUTE_CONFIGS[route_config_index].stop_number,
         ROUTE_CONFIGS[route_config_index].route_numbers[route_number_index],
-        3);
+        3)) {
+        ESP_LOGE(TAG, "Realtime schedule URL exceeds buffer capacity");
+        return;
+    }
     ESP_LOGD(TAG, "Requesting url: %s", url);
 
     ESP_LOGD(TAG, "Response has address %p", response);
