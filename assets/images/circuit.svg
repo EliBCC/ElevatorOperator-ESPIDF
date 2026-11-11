@@ -2,6 +2,11 @@
 <!-- Generator: Circuit Diagram, cdlibrary.dll 4.0.0.0 -->
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg version="1.1" width="840" height="260" xmlns="http://www.w3.org/2000/svg">
+	<style>
+		@media (prefers-color-scheme: dark) {
+			svg { filter: invert(1); }
+		}
+	</style>
 	<text x="670" y="100" style="font-family:Arial;font-size:11px;text-anchor:start" dominant-baseline="middle" transform="rotate(0, 670, 100)">LCD Controller</text>
 	<text x="410" y="80" style="font-family:Arial;font-size:11px;text-anchor:start" dominant-baseline="middle" transform="rotate(0, 410, 80)">Level Shifter</text>
 	<line x1="40" y1="210" x2="120" y2="210" style="stroke:rgb(0, 0, 0);stroke-linecap:square;stroke-width:2" />
