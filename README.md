@@ -40,7 +40,7 @@ The firmware initializes NVS and the LCD, connects the ESP32 to Wi-Fi, and start
 
 Connect the ESP32's 3.3 V pin to the 3.3 V rail and VIN to the 5 V rail. The level shifter's LV and HV pins connect to those respective rails. Connect all grounds to the common ground rail. The LCD I2C signals must pass through the level shifter.
 
-![Circuit wiring diagram](assets/images/circuit.svg)
+![Circuit wiring diagram](assets/images/circuit.png)
 
 Use USB or the optional external supply as the power source. If using the three-AA holder, add a suitable regulator or converter for the 5 V rail. Do not connect USB and external power at the same time unless the development board supports that arrangement.
 
